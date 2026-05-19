@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['img.clerk.com', 'images.clerk.dev', 'localhost'],
+    domains: ['img.clerk.com', 'images.clerk.dev', 'localhost', 'images.unsplash.com'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -10,6 +10,10 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: '**.replicate.delivery',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
       },
     ],
   },

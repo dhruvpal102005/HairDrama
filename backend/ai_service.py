@@ -77,6 +77,72 @@ def generate_prompt(image_type: str, angle: str = None, theme: str = None) -> tu
     
     return prompt, negative_prompt
 
+def process_generation_sync(task_id: int, product_image_url: str, image_type: str, angle: str, theme: str):
+    """Synchronous image generation (Windows compatible)"""
+    try:
+        print(f"Starting generation for task {task_id}, type: {image_type}")
+        
+        # Step 1: Remove background from product
+        print("Step 1: Removing background...")
+        product_no_bg = remove_background(product_image_url)
+        
+        # Step 2: Generate prompt
+        print("Step 2: Generating prompt...")
+        prompt, negative_prompt = generate_prompt(image_type, angle, theme)
+        print(f"Prompt: {prompt[:100]}...")
+        
+        # Step 3: Call Replicate API for image generation
+        print("Step 3: Calling Replicate API...")
+        output = replicate.run(
+            "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
+            input={
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "image": product_no_bg,  # Use product as reference
+                "num_outputs": 1,
+                "guidance_scale": 7.5,
+                "num_inference_steps": 50,
+                "width": 1024,
+                "height": 1024
+            }
+        )
+        
+        generated_url = output[0] if isinstance(output, list) else output
+        print(f"Generated image URL: {generated_url}")
+        
+        # Step 4: Save to database
+        print("Step 4: Saving to database...")
+        result = supabase.table('generated_images').insert({
+            'task_id': task_id,
+            'image_type': image_type,
+            'angle': angle,
+            'theme': theme,
+            'image_url': generated_url,
+            'prompt_used': prompt,
+            'metadata': {
+                'negative_prompt': negative_prompt,
+                'model': 'sdxl',
+                'steps': 50
+            }
+        }).execute()
+        
+        print(f"Generation completed! Image ID: {result.data[0]['id']}")
+        
+        return {
+            'status': 'completed',
+            'image_url': generated_url,
+            'image_id': result.data[0]['id']
+        }
+        
+    except Exception as e:
+        print(f"Generation failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'status': 'failed',
+            'error': str(e)
+        }
+
 def process_generation(task_id: int, product_image_url: str, image_type: str, angle: str, theme: str):
     """Background job to generate image"""
     try:

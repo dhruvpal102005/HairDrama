@@ -350,13 +350,8 @@ def submit_task(task_id):
 @app.route('/api/tasks/<int:task_id>/generate', methods=['POST'])
 @require_auth
 def generate_image(task_id):
-    """Start AI image generation"""
-    from ai_service import start_generation
-    from rate_limiter import ai_generation_limit
-    
-    # Apply rate limiting
-    @ai_generation_limit
-    def _generate():
+    """Start AI image generation (synchronous for Windows)"""
+    try:
         data = request.json
         image_type = data['image_type']  # white_bg, theme, creative, model
         angle = data.get('angle')  # For model images: front, side, closeup
@@ -367,12 +362,42 @@ def generate_image(task_id):
         if not task.data:
             return jsonify({'error': 'Task not found'}), 404
         
-        # Start background job
-        job_id = start_generation(task_id, task.data[0]['product_image_url'], image_type, angle, theme)
+        # Check if Replicate API key is set
+        if not os.getenv('REPLICATE_API_TOKEN'):
+            return jsonify({
+                'error': 'AI generation not configured',
+                'message': 'Replicate API token is not set. Please add REPLICATE_API_TOKEN to backend/.env'
+            }), 503
         
-        return jsonify({'job_id': job_id, 'status': 'processing'})
-    
-    return _generate()
+        # Generate image synchronously (Windows compatible)
+        from ai_service import process_generation_sync
+        
+        result = process_generation_sync(
+            task_id,
+            task.data[0]['product_image_url'],
+            image_type,
+            angle,
+            theme
+        )
+        
+        if result['status'] == 'completed':
+            return jsonify({
+                'status': 'completed',
+                'image_url': result['image_url'],
+                'image_id': result['image_id']
+            })
+        else:
+            return jsonify({
+                'status': 'failed',
+                'error': result.get('error', 'Unknown error')
+            }), 500
+            
+    except Exception as e:
+        print(f"Generation error: {e}")
+        return jsonify({
+            'error': 'Generation failed',
+            'message': str(e)
+        }), 500
 
 @app.route('/api/jobs/<job_id>/status', methods=['GET'])
 @require_auth

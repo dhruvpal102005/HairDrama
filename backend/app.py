@@ -69,6 +69,22 @@ def require_auth(f):
                 return jsonify({'error': 'Invalid token'}), 401
         
         request.user_id = user_id
+        
+        # Auto-create user if doesn't exist
+        try:
+            result = supabase.table('users').select('id').eq('clerk_id', user_id).execute()
+            if not result.data:
+                # Create user with basic info
+                supabase.table('users').insert({
+                    'clerk_id': user_id,
+                    'email': f'{user_id}@user.clerk',
+                    'name': 'User',
+                    'role': 'user'
+                }).execute()
+                print(f"Auto-created user: {user_id}")
+        except Exception as e:
+            print(f"User auto-creation error: {e}")
+        
         return f(*args, **kwargs)
     return decorated_function
 
@@ -113,22 +129,49 @@ def get_current_user():
 
 @app.route('/api/auth/sync', methods=['POST'])
 def sync_user():
-    """Sync user from Clerk webhook"""
+    """Sync user from Clerk - can be called with user info"""
     data = request.json
     
+    # Get user_id from header or data
+    user_id = request.headers.get('X-User-Id') or data.get('clerk_id')
+    
+    if not user_id:
+        return jsonify({'error': 'User ID required'}), 400
+    
     user_data = {
-        'clerk_id': data['id'],
-        'email': data['email_addresses'][0]['email_address'],
-        'name': f"{data.get('first_name', '')} {data.get('last_name', '')}".strip(),
-        'role': 'user',  # Default role
+        'clerk_id': user_id,
+        'email': data.get('email', f'{user_id}@user.clerk'),
+        'name': data.get('name', 'User'),
+        'role': data.get('role', 'user'),
         'updated_at': datetime.utcnow().isoformat()
     }
     
-    # Upsert user
-    result = supabase.table('users').upsert(user_data, on_conflict='clerk_id').execute()
-    return jsonify(result.data[0]), 200
+    # Upsert user (insert or update)
+    try:
+        # Check if user exists
+        result = supabase.table('users').select('*').eq('clerk_id', user_id).execute()
+        
+        if result.data:
+            # Update existing user
+            result = supabase.table('users').update(user_data).eq('clerk_id', user_id).execute()
+        else:
+            # Insert new user
+            result = supabase.table('users').insert(user_data).execute()
+        
+        return jsonify(result.data[0]), 200
+    except Exception as e:
+        print(f"Sync error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 # Admin Task endpoints
+@app.route('/api/users', methods=['GET'])
+@require_auth
+@require_admin
+def list_users():
+    """List all users (admin only)"""
+    result = supabase.table('users').select('*').execute()
+    return jsonify(result.data)
+
 @app.route('/api/tasks', methods=['POST'])
 @require_auth
 @require_admin

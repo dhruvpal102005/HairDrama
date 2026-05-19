@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useUser, UserButton } from '@clerk/nextjs'
 import axios from 'axios'
-import { Plus, Users, CheckCircle, Clock, Moon, Sun, AlertCircle } from 'lucide-react'
+import { Plus, Users, CheckCircle, Clock, Moon, Sun, AlertCircle, UserPlus } from 'lucide-react'
 import { useTheme } from '@/components/ThemeProvider'
 import toast from 'react-hot-toast'
 import CreateTaskModal from '@/components/CreateTaskModal'
@@ -17,6 +17,14 @@ interface Task {
   product_image_url: string
   assigned_to: number | null
   created_at: string
+}
+
+interface User {
+  id: number
+  clerk_id: string
+  email: string
+  name: string
+  role: string
 }
 
 interface Analytics {
@@ -68,9 +76,12 @@ export default function AdminDashboard() {
   const { user } = useUser()
   const { theme, toggleTheme } = useTheme()
   const [tasks, setTasks] = useState<Task[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const [analytics, setAnalytics] = useState<Analytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [demoMode, setDemoMode] = useState(false)
 
   const fetchData = async () => {
@@ -91,6 +102,22 @@ export default function AdminDashboard() {
         'X-User-Id': user.id
       }
 
+      // Sync user to database first
+      try {
+        await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/auth/sync`,
+          {
+            clerk_id: user.id,
+            email: user.primaryEmailAddress?.emailAddress || `${user.id}@admin.clerk`,
+            name: user.fullName || user.firstName || 'Admin',
+            role: 'admin'
+          },
+          { headers }
+        )
+      } catch (e) {
+        console.log('Sync error:', e)
+      }
+
       const [tasksRes, analyticsRes] = await Promise.all([
         axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/tasks`, { headers }),
         axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/analytics`, { headers })
@@ -98,6 +125,15 @@ export default function AdminDashboard() {
 
       setTasks(tasksRes.data)
       setAnalytics(analyticsRes.data)
+      
+      // Fetch users for assignment
+      try {
+        const usersRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/users`, { headers })
+        setUsers(usersRes.data)
+      } catch (e) {
+        console.log('Could not fetch users:', e)
+      }
+      
       setDemoMode(false)
     } catch (error: any) {
       console.log('Backend error:', error.response?.data || error.message)
@@ -108,6 +144,31 @@ export default function AdminDashboard() {
       setDemoMode(true)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleAssignTask = async (userId: number) => {
+    if (!selectedTask || !user) return
+    
+    try {
+      const token = await (user as any).getToken?.() || ''
+      const headers = {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'X-User-Id': user.id
+      }
+      
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/tasks/${selectedTask.id}/assign`,
+        { user_id: userId },
+        { headers }
+      )
+      
+      toast.success('Task assigned successfully!')
+      setShowAssignModal(false)
+      setSelectedTask(null)
+      fetchData()
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to assign task')
     }
   }
 
@@ -232,7 +293,21 @@ export default function AdminDashboard() {
         {tasks.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {tasks.map((task) => (
-              <TaskCard key={task.id} task={task} isAdmin={true} onUpdate={fetchData} />
+              <div key={task.id} className="relative">
+                <TaskCard task={task} isAdmin={true} onUpdate={fetchData} />
+                {task.status === 'pending' && !demoMode && (
+                  <button
+                    onClick={() => {
+                      setSelectedTask(task)
+                      setShowAssignModal(true)
+                    }}
+                    className="absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-blue-700 transition shadow-md flex items-center gap-1"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Assign
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         ) : (
@@ -283,6 +358,49 @@ export default function AdminDashboard() {
             fetchData()
           }}
         />
+      )}
+
+      {/* Assignment Modal */}
+      {showAssignModal && selectedTask && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">
+              Assign Task: {selectedTask.title}
+            </h3>
+            
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {users.length > 0 ? (
+                users.filter(u => u.role === 'user').map((u) => (
+                  <button
+                    key={u.id}
+                    onClick={() => handleAssignTask(u.id)}
+                    className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition"
+                  >
+                    <div className="font-medium text-gray-900">{u.name}</div>
+                    <div className="text-sm text-gray-500">{u.email}</div>
+                  </button>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No users available to assign.</p>
+                  <p className="text-sm mt-2">Users need to sign in first to appear here.</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowAssignModal(false)
+                  setSelectedTask(null)
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

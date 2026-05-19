@@ -57,11 +57,29 @@ export default function UserDashboard() {
         console.log('Could not get session token:', e)
       }
       
+      const headers = {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'X-User-Id': user.id
+      }
+      
+      // Sync user to database first
+      try {
+        await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/auth/sync`,
+          {
+            clerk_id: user.id,
+            email: user.primaryEmailAddress?.emailAddress || `${user.id}@user.clerk`,
+            name: user.fullName || user.firstName || 'User',
+            role: 'user'
+          },
+          { headers }
+        )
+      } catch (e) {
+        console.log('Sync error:', e)
+      }
+      
       const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/my-tasks`, {
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-          'X-User-Id': user.id
-        }
+        headers
       })
       setTasks(response.data)
       setDemoMode(false)

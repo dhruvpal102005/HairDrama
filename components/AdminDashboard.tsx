@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react'
 import { useUser, UserButton } from '@clerk/nextjs'
 import axios from 'axios'
 import { Plus, Users, CheckCircle, Clock, Moon, Sun } from 'lucide-react'
-import { useTheme } from './ThemeProvider'
+import { useTheme } from '@/components/ThemeProvider'
 import toast from 'react-hot-toast'
-import CreateTaskModal from './CreateTaskModal'
-import TaskCard from './TaskCard'
+import CreateTaskModal from '@/components/CreateTaskModal'
+import TaskCard from '@/components/TaskCard'
 
 interface Task {
   id: number
@@ -36,10 +36,11 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const token = await user?.getToken()
+      if (!user) return
+      const token = await (user as any).getToken?.() || ''
       const headers = {
         'Authorization': `Bearer ${token}`,
-        'X-User-Id': user?.id || ''
+        'X-User-Id': user.id || ''
       }
 
       const [tasksRes, analyticsRes] = await Promise.all([

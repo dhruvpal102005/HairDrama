@@ -19,7 +19,7 @@ interface TaskCardProps {
   onUpdate: () => void
 }
 
-export default function TaskCard({ task, isAdmin }: TaskCardProps) {
+export default function TaskCard({ task }: TaskCardProps) {
   const router = useRouter()
 
   const getStatusColor = (status: string) => {

@@ -2,18 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --border: 214.3 31.8% 91.4%;
-}
-
-.dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-}
-
 * {
   box-sizing: border-box;
   padding: 0;
@@ -24,14 +12,17 @@ html,
 body {
   max-width: 100vw;
   overflow-x: hidden;
-}
-
-body {
-  color: hsl(var(--foreground));
-  background: hsl(var(--background));
+  background-color: white;
+  color: #1f2937;
 }
 
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/* Dark mode support */
+.dark body {
+  background-color: #111827;
+  color: #f9fafb;
 }

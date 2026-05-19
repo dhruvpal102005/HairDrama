@@ -23,9 +23,11 @@ export default function DashboardPage() {
     // Fetch user role from backend
     const fetchUserRole = async () => {
       try {
+        if (!user) return
+        const token = await (user as any).getToken?.() || ''
         const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`, {
           headers: {
-            'Authorization': `Bearer ${await user.getToken()}`,
+            'Authorization': `Bearer ${token}`,
             'X-User-Id': user.id
           }
         })

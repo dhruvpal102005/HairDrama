@@ -27,13 +27,14 @@ export default function TaskDetailPage() {
 
   const fetchTask = async () => {
     try {
-      const token = await user?.getToken()
+      if (!user) return
+      const token = await (user as any).getToken?.() || ''
       const response = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/api/tasks/${params.id}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'X-User-Id': user?.id || ''
+            'X-User-Id': user.id || ''
           }
         }
       )
@@ -52,14 +53,15 @@ export default function TaskDetailPage() {
 
   const handleStartTask = async () => {
     try {
-      const token = await user?.getToken()
+      if (!user) return
+      const token = await (user as any).getToken?.() || ''
       await axios.put(
         `${process.env.NEXT_PUBLIC_API_URL}/api/tasks/${params.id}/start`,
         {},
         {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'X-User-Id': user?.id || ''
+            'X-User-Id': user.id || ''
           }
         }
       )
@@ -72,14 +74,15 @@ export default function TaskDetailPage() {
 
   const handleSubmitTask = async () => {
     try {
-      const token = await user?.getToken()
+      if (!user) return
+      const token = await (user as any).getToken?.() || ''
       await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/api/tasks/${params.id}/submit`,
         {},
         {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'X-User-Id': user?.id || ''
+            'X-User-Id': user.id || ''
           }
         }
       )
@@ -161,7 +164,7 @@ export default function TaskDetailPage() {
         {/* AI Studio */}
         {(task.status === 'in_progress' || task.status === 'submitted') && (
           <>
-            <AIStudio taskId={task.id} productImageUrl={task.product_image_url} />
+            <AIStudio taskId={task.id} />
             
             {task.status === 'in_progress' && (
               <div className="mt-6 flex justify-end">

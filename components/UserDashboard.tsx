@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react'
 import { useUser, UserButton } from '@clerk/nextjs'
 import axios from 'axios'
 import { Moon, Sun, CheckCircle, Clock, AlertCircle } from 'lucide-react'
-import { useTheme } from './ThemeProvider'
+import { useTheme } from '@/components/ThemeProvider'
 import toast from 'react-hot-toast'
-import TaskCard from './TaskCard'
+import TaskCard from '@/components/TaskCard'
 
 interface Task {
   id: number
@@ -25,11 +25,12 @@ export default function UserDashboard() {
 
   const fetchTasks = async () => {
     try {
-      const token = await user?.getToken()
+      if (!user) return
+      const token = await (user as any).getToken?.() || ''
       const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/my-tasks`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'X-User-Id': user?.id || ''
+          'X-User-Id': user.id || ''
         }
       })
       setTasks(response.data)

@@ -19,7 +19,6 @@ interface GeneratedImage {
 
 interface AIStudioProps {
   taskId: number
-  productImageUrl: string
 }
 
 const IMAGE_REQUIREMENTS = [
@@ -33,21 +32,21 @@ const IMAGE_REQUIREMENTS = [
   { type: 'model', label: 'Model - Close-up', count: 1, angle: 'closeup' },
 ]
 
-export default function AIStudio({ taskId, productImageUrl }: AIStudioProps) {
+export default function AIStudio({ taskId }: AIStudioProps) {
   const { user } = useUser()
   const [images, setImages] = useState<GeneratedImage[]>([])
   const [generating, setGenerating] = useState<Record<string, boolean>>({})
-  const [polling, setPolling] = useState<Record<string, string>>({}) // jobId by key
 
   const fetchImages = async () => {
     try {
-      const token = await user?.getToken()
+      if (!user) return
+      const token = await (user as any).getToken?.() || ''
       const response = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/api/tasks/${taskId}/generations`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'X-User-Id': user?.id || ''
+            'X-User-Id': user.id || ''
           }
         }
       )
@@ -62,7 +61,8 @@ export default function AIStudio({ taskId, productImageUrl }: AIStudioProps) {
   }, [taskId, user])
 
   const pollJobStatus = async (jobId: string, key: string) => {
-    const token = await user?.getToken()
+    if (!user) return
+    const token = await (user as any).getToken?.() || ''
     
     const interval = setInterval(async () => {
       try {
@@ -71,7 +71,7 @@ export default function AIStudio({ taskId, productImageUrl }: AIStudioProps) {
           {
             headers: {
               'Authorization': `Bearer ${token}`,
-              'X-User-Id': user?.id || ''
+              'X-User-Id': user.id || ''
             }
           }
         )
@@ -79,11 +79,6 @@ export default function AIStudio({ taskId, productImageUrl }: AIStudioProps) {
         if (response.data.status === 'completed') {
           clearInterval(interval)
           setGenerating(prev => ({ ...prev, [key]: false }))
-          setPolling(prev => {
-            const newPolling = { ...prev }
-            delete newPolling[key]
-            return newPolling
-          })
           toast.success('Image generated successfully!')
           fetchImages()
         } else if (response.data.status === 'failed') {
@@ -105,13 +100,14 @@ export default function AIStudio({ taskId, productImageUrl }: AIStudioProps) {
     }, 300000)
   }
 
-  const handleGenerate = async (requirement: typeof IMAGE_REQUIREMENTS[0], index: number) => {
-    const key = `${requirement.type}-${requirement.angle || requirement.theme || index}`
+  const handleGenerate = async (requirement: typeof IMAGE_REQUIREMENTS[0]) => {
+    if (!user) return
+    const key = `${requirement.type}-${requirement.angle || requirement.theme || 0}`
     
     setGenerating(prev => ({ ...prev, [key]: true }))
     
     try {
-      const token = await user?.getToken()
+      const token = await (user as any).getToken?.() || ''
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/api/tasks/${taskId}/generate`,
         {
@@ -122,13 +118,12 @@ export default function AIStudio({ taskId, productImageUrl }: AIStudioProps) {
         {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'X-User-Id': user?.id || ''
+            'X-User-Id': user.id || ''
           }
         }
       )
 
       const jobId = response.data.job_id
-      setPolling(prev => ({ ...prev, [key]: jobId }))
       toast.success('Generation started! This may take 1-2 minutes...')
       
       // Start polling
@@ -142,13 +137,14 @@ export default function AIStudio({ taskId, productImageUrl }: AIStudioProps) {
 
   const handleDelete = async (imageId: number) => {
     try {
-      const token = await user?.getToken()
+      if (!user) return
+      const token = await (user as any).getToken?.() || ''
       await axios.delete(
         `${process.env.NEXT_PUBLIC_API_URL}/api/generations/${imageId}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'X-User-Id': user?.id || ''
+            'X-User-Id': user.id || ''
           }
         }
       )
@@ -166,7 +162,7 @@ export default function AIStudio({ taskId, productImageUrl }: AIStudioProps) {
     link.click()
   }
 
-  const getImageForRequirement = (requirement: typeof IMAGE_REQUIREMENTS[0], index: number) => {
+  const getImageForRequirement = (requirement: typeof IMAGE_REQUIREMENTS[0]) => {
     return images.find(img => {
       if (requirement.angle) {
         return img.image_type === requirement.type && img.angle === requirement.angle
@@ -214,7 +210,7 @@ export default function AIStudio({ taskId, productImageUrl }: AIStudioProps) {
       <div className="grid md:grid-cols-2 gap-6">
         {IMAGE_REQUIREMENTS.map((requirement, index) => {
           const key = `${requirement.type}-${requirement.angle || requirement.theme || index}`
-          const existingImage = getImageForRequirement(requirement, index)
+          const existingImage = getImageForRequirement(requirement)
           const isGenerating = generating[key]
 
           return (
@@ -238,7 +234,7 @@ export default function AIStudio({ taskId, productImageUrl }: AIStudioProps) {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleGenerate(requirement, index)}
+                      onClick={() => handleGenerate(requirement)}
                       disabled={isGenerating}
                       className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
                     >
@@ -272,7 +268,7 @@ export default function AIStudio({ taskId, productImageUrl }: AIStudioProps) {
                     )}
                   </div>
                   <button
-                    onClick={() => handleGenerate(requirement, index)}
+                    onClick={() => handleGenerate(requirement)}
                     disabled={isGenerating}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
                   >

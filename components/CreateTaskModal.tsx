@@ -26,9 +26,11 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
       return
     }
 
+    if (!user) return
+
     setLoading(true)
     try {
-      const token = await user?.getToken()
+      const token = await (user as any).getToken?.() || ''
       await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/api/tasks`,
         {
@@ -39,7 +41,7 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
         {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'X-User-Id': user?.id || ''
+            'X-User-Id': user.id || ''
           }
         }
       )
